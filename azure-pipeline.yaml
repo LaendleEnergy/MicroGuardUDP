@@ -1,0 +1,53 @@
+parameters:
+- name: push
+  displayName: push Image to github/laendleenergy
+  type: boolean
+  default: false
+- name: imagetag
+  displayName: Image Tag
+  type: object
+  default: latest
+- name: dockerfiles
+  type: object
+  default:
+    - name: "udp_server"
+      file: "./Server/Dockerfile"
+
+variables:
+  remoteProjectPath: /home/felix/projects/udp
+  containerRegistryName: LaendleEnergy
+
+trigger: none
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+- stage: build_test
+  condition: eq('${{ parameters.push }}', false)
+  displayName: Build Image
+  jobs:
+  - ${{ each file in parameters.dockerfiles }}:
+    - job: build${{ file.name }}
+      displayName: Build ${{ file.name }}-Image
+      steps:
+      - task: Docker@2
+        displayName: Build Image
+        inputs:
+          command: build
+          dockerfile: ${{ file.file }}
+- stage: build_push
+  condition: eq('${{ parameters.push }}', true)
+  displayName: puild & push to ghcr.io/LaendleEnergy
+  jobs:
+  - ${{ each file in parameters.dockerfiles }}:
+    - job: build_${{ file.name }}
+      displayName: Build ${{ file.name }}-Image
+      steps:
+      - task: Docker@2
+        inputs:
+          containerRegistry: 'github'
+          repository: '$(containerRegistryName)/${{ file.name }}'
+          command: 'buildAndPush'
+          Dockerfile: '**/Dockerfile'
+          tags: '${{ parameters.imagetag }}'
